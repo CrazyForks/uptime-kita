@@ -23,10 +23,12 @@ const isAuthenticated = computed(() => !!page.props.auth?.user);
 // View State
 const viewType = ref(localStorage.getItem('compact_view_type') || 'dots');
 const groupBy = ref(localStorage.getItem('compact_group_by') || 'status');
+const sortBy = ref(localStorage.getItem('compact_sort_by') || 'url');
 const searchQuery = ref('');
 
 watch(viewType, (val) => localStorage.setItem('compact_view_type', val));
 watch(groupBy, (val) => localStorage.setItem('compact_group_by', val));
+watch(sortBy, (val) => localStorage.setItem('compact_sort_by', val));
 
 // Refresh logic
 const countdown = ref(60);
@@ -45,15 +47,38 @@ const startTimer = () => {
 onMounted(() => startTimer());
 onUnmounted(() => timer && clearInterval(timer));
 
-// Filtering
+// Filtering & Sorting
 const filteredMonitors = computed(() => {
-    if (!searchQuery.value) return props.monitors.data;
-    const query = searchQuery.value.toLowerCase();
-    return props.monitors.data.filter(m => 
-        m.url.toLowerCase().includes(query) || 
-        m.name.toLowerCase().includes(query) ||
-        m.tags?.some(t => t.name.toLowerCase().includes(query))
-    );
+    let result = [...props.monitors.data];
+    
+    if (searchQuery.value) {
+        const query = searchQuery.value.toLowerCase();
+        result = result.filter(m => 
+            m.url.toLowerCase().includes(query) || 
+            m.name.toLowerCase().includes(query) ||
+            m.tags?.some(t => t.name.toLowerCase().includes(query))
+        );
+    }
+
+    // Sort
+    return result.sort((a, b) => {
+        let diff = 0;
+        if (sortBy.value === 'url') {
+            diff = a.url.localeCompare(b.url);
+        } else if (sortBy.value === 'status') {
+            const statusOrder = { 'down': 0, 'up': 1, 'not yet checked': 2 };
+            diff = (statusOrder[a.uptime_status] ?? 3) - (statusOrder[b.uptime_status] ?? 3);
+        } else if (sortBy.value === 'latency') {
+            const rtA = a.latest_history?.response_time ?? 999999;
+            const rtB = b.latest_history?.response_time ?? 999999;
+            diff = rtA - rtB;
+        } else if (sortBy.value === 'uptime') {
+            const upA = a.statistics?.uptime_30d ?? 0;
+            const upB = b.statistics?.uptime_30d ?? 0;
+            diff = upB - upA; // Default highest first
+        }
+        return diff;
+    });
 });
 
 // Grouping
@@ -154,6 +179,27 @@ const groups = computed(() => {
                             ]"
                         >
                             {{ group }}
+                        </button>
+                    </div>
+
+                    <!-- Sort Switcher -->
+                    <div class="flex rounded-lg bg-gray-100 p-1 dark:bg-gray-900">
+                        <button
+                            v-for="sort in ['url', 'status', 'latency', 'uptime']"
+                            :key="sort"
+                            @click="sortBy = sort"
+                            :class="[
+                                'h-7 rounded-md px-3 text-[10px] font-bold uppercase tracking-widest transition-all',
+                                sortBy === sort 
+                                    ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400' 
+                                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            ]"
+                            :title="'Sort by ' + sort"
+                        >
+                            <Icon v-if="sort === 'url'" name="caseSensitive" size="14" />
+                            <Icon v-else-if="sort === 'status'" name="checkCircle" size="14" />
+                            <Icon v-else-if="sort === 'latency'" name="zap" size="14" />
+                            <Icon v-else-if="sort === 'uptime'" name="trendingUp" size="14" />
                         </button>
                     </div>
                     
