@@ -116,100 +116,126 @@ const groups = computed(() => {
 
         <div class="mx-auto max-w-[1920px]">
             <!-- Wallboard Controls -->
-            <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-2">
-                        <Link :href="isAuthenticated ? route('dashboard') : route('home')" class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700">
-                            <Icon name="arrowLeft" size="16" />
+            <div class="mb-8 flex flex-col gap-6">
+                <!-- Top Row: Title & Stats -->
+                <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-gray-100 dark:border-gray-900 pb-6">
+                    <div class="flex items-center gap-4">
+                        <Link :href="isAuthenticated ? route('dashboard') : route('home')" class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-900 dark:hover:bg-gray-800 transition-all border border-gray-200 dark:border-gray-800">
+                            <Icon name="arrowLeft" size="20" />
                         </Link>
                         <div>
-                            <h1 class="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100 uppercase">Status Wallboard</h1>
-                            <div class="flex items-center gap-3 text-[10px] text-gray-500 uppercase tracking-widest font-semibold">
-                                <span>{{ filteredMonitors.length }} Monitors</span>
+                            <div class="flex items-center gap-3">
+                                <h1 class="text-2xl font-black tracking-tighter text-gray-900 dark:text-gray-100 uppercase">Status Wallboard</h1>
+                                <span class="rounded-lg bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">LIVE</span>
+                            </div>
+                            <div class="mt-1 flex items-center gap-3 text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                                <span class="flex items-center gap-1"><Icon name="monitor" size="10" /> {{ filteredMonitors.length }} Targets</span>
                                 <span class="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-700"></span>
-                                <span class="flex items-center gap-1">
+                                <span class="flex items-center gap-1 text-blue-500">
                                     <Icon name="clock" size="10" />
                                     REFRESH IN {{ countdown }}S
                                 </span>
                             </div>
                         </div>
                     </div>
+
+                    <div class="flex items-center gap-3">
+                        <div class="hidden sm:flex flex-col items-end">
+                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">System Time</span>
+                            <span class="text-xs font-bold tabular-nums">{{ new Date().toLocaleTimeString() }}</span>
+                        </div>
+                        <Link
+                            v-if="!isAuthenticated"
+                            :href="route('login')"
+                            class="h-10 rounded-xl bg-gray-900 px-6 flex items-center text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-black transition-all dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-lg"
+                        >
+                            Login
+                        </Link>
+                    </div>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-3">
-                    <!-- Search -->
-                    <div class="relative w-full md:w-64">
-                        <Input
-                            v-model="searchQuery"
-                            placeholder="FILTER..."
-                            class="h-9 rounded-lg bg-white/50 px-8 text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm dark:bg-gray-950/50"
-                        />
-                        <Icon name="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size="14" />
+                <!-- Bottom Row: Controls Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                    <!-- Search Box -->
+                    <div class="md:col-span-4 flex flex-col gap-1.5">
+                        <label class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Search & Filter</label>
+                        <div class="relative">
+                            <Input
+                                v-model="searchQuery"
+                                placeholder="FILTER BY DOMAIN, NAME OR TAG..."
+                                class="h-10 rounded-xl border-none bg-gray-100 dark:bg-gray-900 px-10 text-[10px] font-bold uppercase tracking-widest focus:ring-2 focus:ring-blue-500 transition-all"
+                            />
+                            <Icon name="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size="16" />
+                        </div>
                     </div>
 
-                    <!-- View Switcher -->
-                    <div class="flex rounded-lg bg-gray-100 p-1 dark:bg-gray-900">
-                        <button
-                            v-for="type in ['dots', 'table', 'bars', 'cards', 'dashboard']"
-                            :key="type"
-                            @click="viewType = type"
-                            :class="[
-                                'flex h-7 w-9 items-center justify-center rounded-md transition-all',
-                                viewType === type 
-                                    ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400' 
-                                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                            ]"
-                            :title="type.toUpperCase() + ' VIEW'"
-                        >
-                            <Icon :name="type === 'dots' ? 'layoutGrid' : type === 'table' ? 'list' : type === 'bars' ? 'columns' : type === 'cards' ? 'grid' : 'activity'" size="16" />
-                        </button>
-                    </div>
+                    <!-- Switchers -->
+                    <div class="md:col-span-8 flex flex-wrap gap-4 items-center justify-start md:justify-end">
+                        <!-- View -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Layout</label>
+                            <div class="flex rounded-xl bg-gray-100 p-1 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                <button
+                                    v-for="type in ['dots', 'table', 'bars', 'cards', 'dashboard']"
+                                    :key="type"
+                                    @click="viewType = type"
+                                    :class="[
+                                        'flex h-8 w-10 items-center justify-center rounded-lg transition-all',
+                                        viewType === type 
+                                            ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400' 
+                                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                                    ]"
+                                    :title="type.toUpperCase() + ' VIEW'"
+                                >
+                                    <Icon :name="type === 'dots' ? 'layoutGrid' : type === 'table' ? 'list' : type === 'bars' ? 'columns' : type === 'cards' ? 'grid' : 'activity'" size="16" />
+                                </button>
+                            </div>
+                        </div>
 
-                    <!-- Group Switcher -->
-                    <div class="flex rounded-lg bg-gray-100 p-1 dark:bg-gray-900">
-                        <button
-                            v-for="group in ['status', 'tags', 'none']"
-                            :key="group"
-                            @click="groupBy = group"
-                            :class="[
-                                'h-7 rounded-md px-3 text-[10px] font-bold uppercase tracking-widest transition-all',
-                                groupBy === group 
-                                    ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400' 
-                                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                            ]"
-                        >
-                            {{ group }}
-                        </button>
-                    </div>
+                        <!-- Grouping -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Group By</label>
+                            <div class="flex rounded-xl bg-gray-100 p-1 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                <button
+                                    v-for="group in ['status', 'tags', 'none']"
+                                    :key="group"
+                                    @click="groupBy = group"
+                                    :class="[
+                                        'h-8 rounded-lg px-4 text-[10px] font-bold uppercase tracking-widest transition-all',
+                                        groupBy === group 
+                                            ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400' 
+                                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                                    ]"
+                                >
+                                    {{ group }}
+                                </button>
+                            </div>
+                        </div>
 
-                    <!-- Sort Switcher -->
-                    <div class="flex rounded-lg bg-gray-100 p-1 dark:bg-gray-900">
-                        <button
-                            v-for="sort in ['url', 'status', 'latency', 'uptime']"
-                            :key="sort"
-                            @click="sortBy = sort"
-                            :class="[
-                                'h-7 rounded-md px-3 text-[10px] font-bold uppercase tracking-widest transition-all',
-                                sortBy === sort 
-                                    ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400' 
-                                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                            ]"
-                            :title="'Sort by ' + sort"
-                        >
-                            <Icon v-if="sort === 'url'" name="caseSensitive" size="14" />
-                            <Icon v-else-if="sort === 'status'" name="checkCircle" size="14" />
-                            <Icon v-else-if="sort === 'latency'" name="zap" size="14" />
-                            <Icon v-else-if="sort === 'uptime'" name="trendingUp" size="14" />
-                        </button>
+                        <!-- Sorting -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Sort By</label>
+                            <div class="flex rounded-xl bg-gray-100 p-1 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                <button
+                                    v-for="sort in ['url', 'status', 'latency', 'uptime']"
+                                    :key="sort"
+                                    @click="sortBy = sort"
+                                    :class="[
+                                        'flex h-8 w-10 items-center justify-center rounded-lg transition-all',
+                                        sortBy === sort 
+                                            ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400' 
+                                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                                    ]"
+                                    :title="'Sort by ' + sort"
+                                >
+                                    <Icon v-if="sort === 'url'" name="caseSensitive" size="16" />
+                                    <Icon v-else-if="sort === 'status'" name="checkCircle" size="16" />
+                                    <Icon v-else-if="sort === 'latency'" name="zap" size="16" />
+                                    <Icon v-else-if="sort === 'uptime'" name="trendingUp" size="16" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <Link
-                        v-if="!isAuthenticated"
-                        :href="route('login')"
-                        class="h-9 rounded-lg bg-blue-600 px-4 flex items-center text-[10px] font-bold uppercase tracking-widest text-white hover:bg-blue-700 transition-colors"
-                    >
-                        LOGIN
-                    </Link>
                 </div>
             </div>
 
