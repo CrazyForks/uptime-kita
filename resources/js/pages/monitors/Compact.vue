@@ -24,9 +24,29 @@ const isAuthenticated = computed(() => !!page.props.auth?.user);
 const viewType = ref(localStorage.getItem('compact_view_type') || 'dots');
 const groupBy = ref(localStorage.getItem('compact_group_by') || 'status');
 const sortBy = ref(localStorage.getItem('compact_sort_by') || 'url');
+const collapsedGroups = ref<string[]>(JSON.parse(localStorage.getItem('compact_collapsed_groups') || '[]'));
 const searchQuery = ref('');
 
 watch(viewType, (val) => localStorage.setItem('compact_view_type', val));
+watch(collapsedGroups, (val) => localStorage.setItem('compact_collapsed_groups', JSON.stringify(val)), { deep: true });
+
+const toggleGroup = (name: string) => {
+    if (collapsedGroups.value.includes(name)) {
+        collapsedGroups.value = collapsedGroups.value.filter(g => g !== name);
+    } else {
+        collapsedGroups.value.push(name);
+    }
+};
+
+const isAllCollapsed = computed(() => groups.value.every(g => collapsedGroups.value.includes(g.name)));
+
+const toggleAllGroups = () => {
+    if (isAllCollapsed.value) {
+        collapsedGroups.value = [];
+    } else {
+        collapsedGroups.value = groups.value.map(g => g.name);
+    }
+};
 watch(groupBy, (val) => localStorage.setItem('compact_group_by', val));
 watch(sortBy, (val) => localStorage.setItem('compact_sort_by', val));
 
@@ -236,26 +256,46 @@ const groups = computed(() => {
                                 </button>
                             </div>
                         </div>
+
+                        <!-- Collapse All -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Expand/Collapse</label>
+                            <button
+                                @click="toggleAllGroups"
+                                class="flex h-8 w-10 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all shadow-sm"
+                                :title="isAllCollapsed ? 'Expand All' : 'Collapse All'"
+                            >
+                                <Icon :name="isAllCollapsed ? 'maximize2' : 'minimize2'" size="16" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div> <!-- End Sticky -->
             </div>
 
             <!-- Dashboard Grid -->
-            <div class="space-y-12">
+            <div class="space-y-8">
                 <div v-for="group in groups" :key="group.name" class="animate-in fade-in slide-in-from-top-2 duration-500">
-                    <div class="mb-4 flex items-center gap-3">
-                        <h2 :class="['text-[10px] font-black uppercase tracking-[0.2em]', group.color]">
+                    <div 
+                        @click="toggleGroup(group.name)"
+                        class="mb-4 flex items-center gap-3 cursor-pointer group/header select-none"
+                    >
+                        <div :class="['flex items-center gap-2 transition-transform duration-200', collapsedGroups.includes(group.name) ? '' : 'rotate-90']">
+                            <Icon name="chevronRight" :class="group.color" size="14" />
+                        </div>
+                        <h2 :class="['text-[10px] font-black uppercase tracking-[0.2em] group-hover/header:opacity-80 transition-opacity', group.color]">
                             {{ group.name }}
                             <span class="ml-2 text-gray-500 font-bold">[{{ group.monitors.length }}]</span>
                         </h2>
                         <div class="h-px flex-1 bg-gray-100 dark:bg-gray-900/50"></div>
                     </div>
 
-                    <component
-                        :is="viewType === 'dots' ? CompactDots : viewType === 'table' ? CompactTable : viewType === 'bars' ? CompactBars : viewType === 'cards' ? CompactCards : CompactDashboard"
-                        :monitors="group.monitors"
-                    />
+                    <div v-show="!collapsedGroups.includes(group.name)" class="animate-in fade-in slide-in-from-top-1 duration-300">
+                        <component
+                            :is="viewType === 'dots' ? CompactDots : viewType === 'table' ? CompactTable : viewType === 'bars' ? CompactBars : viewType === 'cards' ? CompactCards : CompactDashboard"
+                            :monitors="group.monitors"
+                        />
+                    </div>
                 </div>
                 
                 <div v-if="filteredMonitors.length === 0" class="flex flex-col items-center justify-center py-32 text-center">
