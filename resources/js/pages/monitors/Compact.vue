@@ -10,6 +10,7 @@ import CompactDots from './partials/CompactDots.vue';
 import CompactTable from './partials/CompactTable.vue';
 import CompactBars from './partials/CompactBars.vue';
 import CompactCards from './partials/CompactCards.vue';
+import CompactDashboard from './partials/CompactDashboard.vue';
 
 const props = defineProps<{
     monitors: { data: Monitor[] };
@@ -124,7 +125,7 @@ const groups = computed(() => {
                     <!-- View Switcher -->
                     <div class="flex rounded-lg bg-gray-100 p-1 dark:bg-gray-900">
                         <button
-                            v-for="type in ['dots', 'table', 'bars', 'cards']"
+                            v-for="type in ['dots', 'table', 'bars', 'cards', 'dashboard']"
                             :key="type"
                             @click="viewType = type"
                             :class="[
@@ -135,7 +136,7 @@ const groups = computed(() => {
                             ]"
                             :title="type.toUpperCase() + ' VIEW'"
                         >
-                            <Icon :name="type === 'dots' ? 'layoutGrid' : type === 'table' ? 'list' : type === 'bars' ? 'columns' : 'grid'" size="16" />
+                            <Icon :name="type === 'dots' ? 'layoutGrid' : type === 'table' ? 'list' : type === 'bars' ? 'columns' : type === 'cards' ? 'grid' : 'activity'" size="16" />
                         </button>
                     </div>
 
@@ -178,7 +179,7 @@ const groups = computed(() => {
                     </div>
 
                     <component
-                        :is="viewType === 'dots' ? CompactDots : viewType === 'table' ? CompactTable : viewType === 'bars' ? CompactBars : CompactCards"
+                        :is="viewType === 'dots' ? CompactDots : viewType === 'table' ? CompactTable : viewType === 'bars' ? CompactBars : viewType === 'cards' ? CompactCards : CompactDashboard"
                         :monitors="group.monitors"
                     />
                 </div>

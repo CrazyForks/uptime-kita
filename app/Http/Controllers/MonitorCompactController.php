@@ -15,7 +15,7 @@ class MonitorCompactController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Monitor::with(['tags', 'uptimeDaily']);
+        $query = Monitor::with(['tags', 'uptimeDaily', 'statistics', 'latestHistory']);
 
         // If not logged in, only show public monitors
         if (! auth()->check()) {
