@@ -154,8 +154,9 @@ const groups = computed(() => {
                     </div>
                 </div>
 
-                <!-- Bottom Row: Controls Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <!-- Bottom Row: Controls Grid (Sticky) -->
+                <div class="sticky top-0 z-30 -mx-4 px-4 py-4 mb-2 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-transparent transition-all duration-300 group-[.is-stuck]:border-gray-100 dark:group-[.is-stuck]:border-gray-900">
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                     <!-- Search Box -->
                     <div class="md:col-span-4 flex flex-col gap-1.5">
                         <label class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Search & Filter</label>
@@ -237,6 +238,7 @@ const groups = computed(() => {
                         </div>
                     </div>
                 </div>
+            </div> <!-- End Sticky -->
             </div>
 
             <!-- Dashboard Grid -->
