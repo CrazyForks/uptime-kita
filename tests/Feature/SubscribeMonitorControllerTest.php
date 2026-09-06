@@ -85,7 +85,7 @@ describe('SubscribeMonitorController', function () {
         $response->assertUnauthorized();
     });
 
-    it('prevents subscription to disabled monitor', function () {
+    it('auto enables disabled monitor when a user subscribes', function () {
         $disabledMonitor = Monitor::factory()->create([
             'is_public' => true,
             'uptime_check_enabled' => false,
@@ -94,8 +94,15 @@ describe('SubscribeMonitorController', function () {
         $response = actingAs($this->user)
             ->postJson("/monitors/{$disabledMonitor->id}/subscribe");
 
-        $response->assertStatus(403);
-        $response->assertJson(['message' => 'Cannot subscribe to disabled monitor']);
+        $response->assertOk();
+        $response->assertJson(['message' => 'Subscribed to monitor successfully']);
+
+        expect($disabledMonitor->fresh()->uptime_check_enabled)->toBeTrue();
+        assertDatabaseHas('user_monitor', [
+            'monitor_id' => $disabledMonitor->id,
+            'user_id' => $this->user->id,
+            'is_active' => true,
+        ]);
     });
 
     it('maintains owner status when subscribing', function () {
@@ -141,7 +148,7 @@ describe('SubscribeMonitorController', function () {
             $response->assertSessionHas('flash.message', 'Cannot subscribe to private monitor');
         });
 
-        it('returns redirect response for disabled monitor error', function () {
+        it('returns redirect response and auto enables disabled monitor when subscribing', function () {
             $disabledMonitor = Monitor::factory()->create([
                 'is_public' => true,
                 'uptime_check_enabled' => false,
@@ -151,8 +158,15 @@ describe('SubscribeMonitorController', function () {
                 ->post("/monitors/{$disabledMonitor->id}/subscribe");
 
             $response->assertRedirect();
-            $response->assertSessionHas('flash.type', 'error');
-            $response->assertSessionHas('flash.message', 'Cannot subscribe to disabled monitor');
+            $response->assertSessionHas('flash.type', 'success');
+            $response->assertSessionHas('flash.message', 'Berhasil berlangganan monitor: '.$disabledMonitor->url);
+
+            expect($disabledMonitor->fresh()->uptime_check_enabled)->toBeTrue();
+            assertDatabaseHas('user_monitor', [
+                'monitor_id' => $disabledMonitor->id,
+                'user_id' => $this->user->id,
+                'is_active' => true,
+            ]);
         });
 
         it('returns redirect response for duplicate subscription error', function () {
