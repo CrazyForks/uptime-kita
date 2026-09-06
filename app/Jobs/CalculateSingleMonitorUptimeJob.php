@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Services\MonitorPerformanceService;
 use Exception;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
@@ -141,11 +140,14 @@ class CalculateSingleMonitorUptimeJob implements ShouldBeUnique, ShouldQueue
         $startDate = Carbon::parse($this->date)->startOfDay();
         $endDate = $startDate->copy()->endOfDay();
 
-        // Use a single database query to get both total and up counts
+        // Use a single database query to get total, up counts, and response time aggregates
         $result = DB::table('monitor_histories')
             ->selectRaw('
                 COUNT(*) as total_checks,
-                SUM(CASE WHEN uptime_status = "up" THEN 1 ELSE 0 END) as up_checks
+                SUM(CASE WHEN uptime_status = "up" THEN 1 ELSE 0 END) as up_checks,
+                AVG(CASE WHEN uptime_status = "up" AND response_time IS NOT NULL THEN response_time ELSE NULL END) as avg_response_time,
+                MIN(CASE WHEN uptime_status = "up" AND response_time IS NOT NULL THEN response_time ELSE NULL END) as min_response_time,
+                MAX(CASE WHEN uptime_status = "up" AND response_time IS NOT NULL THEN response_time ELSE NULL END) as max_response_time
             ')
             ->where('monitor_id', $this->monitorId)
             ->whereBetween('created_at', [$startDate, $endDate])
@@ -168,17 +170,23 @@ class CalculateSingleMonitorUptimeJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        $uptimePercentage = ((int) $result->up_checks / (int) $result->total_checks) * 100;
+        $totalChecks = (int) $result->total_checks;
+        $upChecks = (int) $result->up_checks;
+        $uptimePercentage = ($totalChecks > 0) ? ($upChecks / $totalChecks) * 100 : 0.0;
 
-        // Calculate response time metrics
-        $performanceService = app(MonitorPerformanceService::class);
-        $responseMetrics = $performanceService->aggregateDailyMetrics($this->monitorId, $this->date);
+        $responseMetrics = [
+            'avg_response_time' => ($result->avg_response_time !== null) ? (int) round((float) $result->avg_response_time) : null,
+            'min_response_time' => ($result->min_response_time !== null) ? (int) $result->min_response_time : null,
+            'max_response_time' => ($result->max_response_time !== null) ? (int) $result->max_response_time : null,
+            'total_checks' => $totalChecks,
+            'failed_checks' => $totalChecks - $upChecks,
+        ];
 
         Log::debug('Uptime calculation details', [
             'monitor_id' => $this->monitorId,
             'date' => $this->date,
-            'total_checks' => $result->total_checks,
-            'up_checks' => $result->up_checks,
+            'total_checks' => $totalChecks,
+            'up_checks' => $upChecks,
             'uptime_percentage' => $uptimePercentage,
             'response_metrics' => $responseMetrics,
         ]);

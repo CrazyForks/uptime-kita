@@ -66,9 +66,10 @@ describe('CalculateSingleMonitorUptimeJob', function () {
         it('calculates uptime correctly with mixed status data', function () {
             $startDate = Carbon::parse($this->date)->startOfDay();
 
-            // Create monitor histories: 8 up, 2 down = 80% uptime
+            // Create monitor histories: 8 up, 2 down = 80% uptime (avg response time 250)
             MonitorHistory::factory()->count(8)->sequence(fn ($sequence) => [
                 'created_at' => $startDate->copy()->addHours(1)->addMinutes($sequence->index),
+                'response_time' => 250,
             ])->create([
                 'monitor_id' => $this->monitor->id,
                 'uptime_status' => 'up',
@@ -76,6 +77,7 @@ describe('CalculateSingleMonitorUptimeJob', function () {
 
             MonitorHistory::factory()->count(2)->sequence(fn ($sequence) => [
                 'created_at' => $startDate->copy()->addHours(2)->addMinutes($sequence->index),
+                'response_time' => 0,
             ])->create([
                 'monitor_id' => $this->monitor->id,
                 'uptime_status' => 'down',

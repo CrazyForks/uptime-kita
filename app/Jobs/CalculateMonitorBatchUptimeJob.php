@@ -44,12 +44,15 @@ class CalculateMonitorBatchUptimeJob implements ShouldQueue
         $endDate = $startDate->copy()->endOfDay();
         $dateOnly = Carbon::parse($this->date)->toDateString();
 
-        // 1. Query aggregate statistics for all monitors in this chunk in a single query
+        // 1. Query aggregate statistics & performance metrics for all monitors in this chunk in a single query
         $historyStats = DB::table('monitor_histories')
             ->selectRaw('
                 monitor_id,
                 COUNT(*) as total_checks,
-                SUM(CASE WHEN uptime_status = "up" THEN 1 ELSE 0 END) as up_checks
+                SUM(CASE WHEN uptime_status = "up" THEN 1 ELSE 0 END) as up_checks,
+                AVG(CASE WHEN uptime_status = "up" AND response_time IS NOT NULL THEN response_time ELSE NULL END) as avg_response_time,
+                MIN(CASE WHEN uptime_status = "up" AND response_time IS NOT NULL THEN response_time ELSE NULL END) as min_response_time,
+                MAX(CASE WHEN uptime_status = "up" AND response_time IS NOT NULL THEN response_time ELSE NULL END) as max_response_time
             ')
             ->whereIn('monitor_id', $this->monitorIds)
             ->whereBetween('created_at', [$startDate, $endDate])
@@ -69,9 +72,9 @@ class CalculateMonitorBatchUptimeJob implements ShouldQueue
                     ? round(($upChecks / $totalChecks) * 100, 2)
                     : 0.0;
 
-                $responseMetrics = $totalChecks > 0
-                    ? $performanceService->aggregateDailyMetrics($monitorId, $this->date)
-                    : [];
+                $avgResponseTime = ($totalChecks > 0 && isset($stat->avg_response_time) && $stat->avg_response_time !== null)
+                    ? (int) round((float) $stat->avg_response_time)
+                    : null;
 
                 $record = [
                     'monitor_id' => $monitorId,
@@ -79,9 +82,9 @@ class CalculateMonitorBatchUptimeJob implements ShouldQueue
                     'uptime_percentage' => $uptimePercentage,
                     'total_checks' => $totalChecks,
                     'failed_checks' => $totalChecks - $upChecks,
-                    'avg_response_time' => $responseMetrics['avg_response_time'] ?? null,
-                    'min_response_time' => $responseMetrics['min_response_time'] ?? null,
-                    'max_response_time' => $responseMetrics['max_response_time'] ?? null,
+                    'avg_response_time' => $avgResponseTime,
+                    'min_response_time' => ($totalChecks > 0 && isset($stat->min_response_time)) ? (int) $stat->min_response_time : null,
+                    'max_response_time' => ($totalChecks > 0 && isset($stat->max_response_time)) ? (int) $stat->max_response_time : null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
