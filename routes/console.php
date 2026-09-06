@@ -76,6 +76,7 @@ Schedule::timezone($scheduleTimezone)->group(function () {
     Schedule::command(CheckDomainExpiration::class)->twiceDailyAt(1, 13, 15);
     Schedule::command('uptime:calculate-daily')->everyThreeHours(5);
     Schedule::command('monitor:update-maintenance-status --cleanup')->everySixHours(10);
+    Schedule::command('monitor:disable-without-subscribers')->daily();
 
     // === LARAVEL HORIZON ===
     if (config('queue.default') === 'redis') {

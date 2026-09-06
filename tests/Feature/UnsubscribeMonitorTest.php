@@ -34,6 +34,9 @@ function testSuccessfulUnsubscription()
                 'monitor_id' => $monitor->id,
             ]);
 
+            // Verify monitor is auto-disabled because it has 0 subscribers
+            $this->assertFalse((bool) $monitor->fresh()->uptime_check_enabled);
+
             // Verify cache is cleared
             $this->assertNull(Cache::get('public_monitors_authenticated_'.$user->id));
         });
@@ -52,6 +55,23 @@ function testSuccessfulUnsubscription()
 
             $response->assertRedirect();
             $response->assertSessionHas('flash.message', 'Berhasil berhenti berlangganan monitor: https://example-custom.com');
+        });
+
+        it('keeps monitor enabled if other subscribers still remain', function () {
+            $user = User::factory()->create();
+            $otherUser = User::factory()->create();
+            $monitor = Monitor::factory()->create([
+                'is_public' => true,
+                'uptime_check_enabled' => true,
+                'url' => 'https://shared-example.com',
+            ]);
+
+            $monitor->users()->attach([$user->id, $otherUser->id]);
+
+            $response = $this->actingAs($user)->delete("/monitors/{$monitor->id}/unsubscribe");
+
+            $response->assertRedirect();
+            $this->assertTrue((bool) $monitor->fresh()->uptime_check_enabled);
         });
     });
 }

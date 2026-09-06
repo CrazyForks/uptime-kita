@@ -28,8 +28,14 @@ class UnsubscribeMonitorController extends Controller
 
             $monitor->users()->detach(auth()->id());
 
+            // Auto-disable monitor if zero subscribers remain
+            if ($monitor->users()->count() === 0) {
+                $monitor->update(['uptime_check_enabled' => false]);
+            }
+
             // clear monitor cache
             cache()->forget('public_monitors_authenticated_'.auth()->id());
+            cache()->forget('public_monitors_status_counts');
 
             return redirect()->back()->with('flash', [
                 'type' => 'success',
