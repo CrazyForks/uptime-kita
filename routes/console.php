@@ -8,120 +8,124 @@ use Illuminate\Support\Facades\Schedule;
 use Spatie\Health\Models\HealthCheckResultHistoryItem;
 use Spatie\UptimeMonitor\Commands\CheckCertificates;
 
-$scheduleFrequency = config('uptime-monitor.schedule.frequency', 'everyMinute');
-$scheduleCron = config('uptime-monitor.schedule.cron');
-$scheduleMinute = (int) config('uptime-monitor.schedule.minute', 0);
-$scheduleTime = config('uptime-monitor.schedule.time', '00:00');
+$scheduleTimezone = config('app.schedule_timezone', 'Asia/Jakarta');
 
-if ($scheduleFrequency !== 'none') {
-    $applySchedule = function ($event, int $minuteOffset = 0) use ($scheduleFrequency, $scheduleCron, $scheduleMinute, $scheduleTime) {
-        if (! empty($scheduleCron)) {
-            return $event->cron($scheduleCron);
+Schedule::timezone($scheduleTimezone)->group(function () {
+    $scheduleFrequency = config('uptime-monitor.schedule.frequency', 'everyMinute');
+    $scheduleCron = config('uptime-monitor.schedule.cron');
+    $scheduleMinute = (int) config('uptime-monitor.schedule.minute', 0);
+    $scheduleTime = config('uptime-monitor.schedule.time', '00:00');
+
+    if ($scheduleFrequency !== 'none') {
+        $applySchedule = function ($event, int $minuteOffset = 0) use ($scheduleFrequency, $scheduleCron, $scheduleMinute, $scheduleTime) {
+            if (! empty($scheduleCron)) {
+                return $event->cron($scheduleCron);
+            }
+
+            if ($scheduleFrequency === 'hourly') {
+                $minute = ($scheduleMinute + $minuteOffset) % 60;
+
+                return $event->hourlyAt($minute);
+            }
+
+            if ($scheduleFrequency === 'daily') {
+                return $event->dailyAt($scheduleTime);
+            }
+
+            if (method_exists($event, $scheduleFrequency)) {
+                return $event->$scheduleFrequency();
+            }
+
+            return $event->everyMinute();
+        };
+
+        // Main uptime check - runs according to SCHEDULE_FREQUENCY (e.g. everyMinute)
+        $uptimeCheckEvent = Schedule::command('monitor:check-uptime')
+            ->withoutOverlapping(2)
+            ->before(function () {
+                info('UPTIME-CHECK: STARTED');
+            })
+            ->onSuccess(function () {
+                info('UPTIME-CHECK: SUCCESS');
+            })
+            ->onFailure(function () {
+                info('UPTIME-CHECK: FAILED');
+            });
+
+        $heartbeatUrl = config('uptime-monitor.schedule.uptime_check_heartbeat_url');
+        if (! empty($heartbeatUrl)) {
+            $uptimeCheckEvent
+                ->pingBefore($heartbeatUrl.'/start')
+                ->pingOnSuccess($heartbeatUrl)
+                ->pingOnFailure($heartbeatUrl.'/fail');
         }
 
-        if ($scheduleFrequency === 'hourly') {
-            $minute = ($scheduleMinute + $minuteOffset) % 60;
+        $applySchedule($uptimeCheckEvent, 0);
 
-            return $event->hourlyAt($minute);
-        }
+        // Maintenance windows update & batched notifications
+        $applySchedule(Schedule::command('monitor:update-maintenance-status'), 10);
+        $applySchedule(Schedule::job(new SendBatchedNotificationsJob), 5);
 
-        if ($scheduleFrequency === 'daily') {
-            return $event->dailyAt($scheduleTime);
-        }
-
-        if (method_exists($event, $scheduleFrequency)) {
-            return $event->$scheduleFrequency();
-        }
-
-        return $event->everyMinute();
-    };
-
-    // Main uptime check - runs according to SCHEDULE_FREQUENCY (e.g. everyMinute)
-    $uptimeCheckEvent = Schedule::command('monitor:check-uptime')
-        ->withoutOverlapping(2)
-        ->before(function () {
-            info('UPTIME-CHECK: STARTED');
-        })
-        ->onSuccess(function () {
-            info('UPTIME-CHECK: SUCCESS');
-        })
-        ->onFailure(function () {
-            info('UPTIME-CHECK: FAILED');
-        });
-
-    $heartbeatUrl = config('uptime-monitor.schedule.uptime_check_heartbeat_url');
-    if (! empty($heartbeatUrl)) {
-        $uptimeCheckEvent
-            ->pingBefore($heartbeatUrl.'/start')
-            ->pingOnSuccess($heartbeatUrl)
-            ->pingOnFailure($heartbeatUrl.'/fail');
+        // Heavy aggregation job: calculate stats every 15 minutes
+        Schedule::job(new CalculateMonitorStatisticsJob)
+            ->everySixHours(5)
+            ->withoutOverlapping(10);
     }
 
-    $applySchedule($uptimeCheckEvent, 0);
+    Schedule::command(CheckCertificates::class)->twiceDailyAt(1, 13, 15);
+    Schedule::command(CheckDomainExpiration::class)->twiceDailyAt(1, 13, 15);
+    Schedule::command('uptime:calculate-daily')->everyThreeHours(5);
+    Schedule::command('monitor:update-maintenance-status --cleanup')->everySixHours(10);
 
-    // Maintenance windows update & batched notifications
-    $applySchedule(Schedule::command('monitor:update-maintenance-status'), 10);
-    $applySchedule(Schedule::job(new SendBatchedNotificationsJob), 5);
+    // === LARAVEL HORIZON ===
+    if (config('queue.default') === 'redis') {
+        Schedule::command('horizon:snapshot')->everyFiveMinutes();
+        Schedule::command('horizon:forget --all')->daily();
+    }
+    Schedule::command('queue:prune-batches')->daily();
 
-    // Heavy aggregation job: calculate stats every 15 minutes
-    Schedule::job(new CalculateMonitorStatisticsJob)
-        ->everySixHours(5)
-        ->withoutOverlapping(10);
-}
+    // === LARAVEL TELESCOPE ===
+    if (config('telescope.enabled')) {
+        Schedule::command('telescope:prune --hours=48')->everyOddHour();
+    }
 
-Schedule::command(CheckCertificates::class)->twiceDailyAt(1, 13, 15);
-Schedule::command(CheckDomainExpiration::class)->twiceDailyAt(1, 13, 15);
-Schedule::command('uptime:calculate-daily')->everyThreeHours(5);
-Schedule::command('monitor:update-maintenance-status --cleanup')->everySixHours(10);
+    // === TRACE-REPLAY ===
+    if (config('trace-replay.enabled')) {
+        Schedule::command('trace-replay:prune --days=30')->daily();
+    }
 
-// === LARAVEL HORIZON ===
-if (config('queue.default') === 'redis') {
-    Schedule::command('horizon:snapshot')->everyFiveMinutes();
-    Schedule::command('horizon:forget --all')->daily();
-}
-Schedule::command('queue:prune-batches')->daily();
+    // === LARAVEL PRUNABLE MODELS ===
+    Schedule::command('model:prune')->daily();
+    Schedule::command('model:prune', ['--model' => [HealthCheckResultHistoryItem::class]])->daily();
 
-// === LARAVEL TELESCOPE ===
-if (config('telescope.enabled')) {
-    Schedule::command('telescope:prune --hours=48')->everyOddHour();
-}
+    Schedule::command('sitemap:generate')->daily();
 
-// === TRACE-REPLAY ===
-if (config('trace-replay.enabled')) {
-    Schedule::command('trace-replay:prune --days=30')->daily();
-}
+    if (config('database.default') === 'sqlite') {
+        Schedule::command('sqlite:optimize')->weeklyOn(0, '2:00');
+    }
 
-// === LARAVEL PRUNABLE MODELS ===
-Schedule::command('model:prune')->daily();
-Schedule::command('model:prune', ['--model' => [HealthCheckResultHistoryItem::class]])->daily();
+    // === ANONYMOUS TELEMETRY ===
+    if (config('telemetry.enabled')) {
+        $frequency = config('telemetry.frequency', 'daily');
 
-Schedule::command('sitemap:generate')->daily();
+        $telemetrySchedule = Schedule::job(new SendTelemetryPingJob);
 
-if (config('database.default') === 'sqlite') {
-    Schedule::command('sqlite:optimize')->weeklyOn(0, '2:00');
-}
+        match ($frequency) {
+            'hourly' => $telemetrySchedule->hourly(),
+            'weekly' => $telemetrySchedule->weekly(),
+            default => $telemetrySchedule->daily(),
+        };
+    }
 
-// === ANONYMOUS TELEMETRY ===
-if (config('telemetry.enabled')) {
-    $frequency = config('telemetry.frequency', 'daily');
-
-    $telemetrySchedule = Schedule::job(new SendTelemetryPingJob);
-
-    match ($frequency) {
-        'hourly' => $telemetrySchedule->hourly(),
-        'weekly' => $telemetrySchedule->weekly(),
-        default => $telemetrySchedule->daily(),
-    };
-}
-
-// === BACKUP DB ===
-if (config('backup.enabled', true)) {
-    Schedule::command('backup:clean')->daily()->at('01:00');
-    Schedule::command('backup:run')->daily()->at('01:30')
-        ->onSuccess(function () {
-            info('BACKUP-DB: SUCCESS');
-        })
-        ->onFailure(function () {
-            info('BACKUP-DB: FAILED');
-        });
-}
+    // === BACKUP DB ===
+    if (config('backup.enabled', true)) {
+        Schedule::command('backup:clean')->daily()->at('01:00');
+        Schedule::command('backup:run')->daily()->at('01:30')
+            ->onSuccess(function () {
+                info('BACKUP-DB: SUCCESS');
+            })
+            ->onFailure(function () {
+                info('BACKUP-DB: FAILED');
+            });
+    }
+});
