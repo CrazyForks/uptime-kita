@@ -34,7 +34,8 @@ const metricItems = computed(() => {
     const totalPublic = props.stats.total_public || 0;
     const upCount = props.stats.up || 0;
     const downCount = props.stats.down || 0;
-    const uptimeExact = totalPublic > 0 ? ((upCount / totalPublic) * 100).toFixed(2).replace(/\.00$/, '') : '100';
+    const totalActive = upCount + downCount;
+    const uptimeExact = totalActive > 0 ? ((upCount / totalActive) * 100).toFixed(2).replace(/\.00$/, '') : '100';
 
     return [
         {
@@ -110,8 +111,8 @@ const metricItems = computed(() => {
         {
             key: 'uptime',
             label: 'Network Uptime',
-            value: `${Math.round((props.stats.up / (props.stats.total_public || 1)) * 100)}%`,
-            tooltip: `Overall network uptime: ${uptimeExact}% (${upCount.toLocaleString()} / ${totalPublic.toLocaleString()} operational)`,
+            value: `${totalActive > 0 ? Math.round((upCount / totalActive) * 100) : 100}%`,
+            tooltip: `Overall network uptime: ${uptimeExact}% (${upCount.toLocaleString()} / ${totalActive.toLocaleString()} operational among actively monitored services)`,
             loading: false,
             icon: 'gauge',
             iconColor: 'text-emerald-500 dark:text-emerald-400',
