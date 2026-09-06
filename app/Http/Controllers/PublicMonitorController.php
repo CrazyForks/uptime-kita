@@ -49,15 +49,19 @@ class PublicMonitorController extends Controller
 
         $appUrl = config('app.url');
         $counts = cache()->remember('public_monitors_status_counts', 30, function () {
+            $baseQuery = Monitor::withoutGlobalScope('user')->withoutGlobalScope('enabled')->public();
+
             return [
-                'up' => Monitor::withoutGlobalScope('user')->public()->where('uptime_status', 'up')->count(),
-                'total_public' => Monitor::withoutGlobalScope('user')->public()->count(),
-                'down' => Monitor::withoutGlobalScope('user')->public()->where('uptime_status', 'down')->count(),
+                'up' => (clone $baseQuery)->where('uptime_check_enabled', true)->where('uptime_status', 'up')->count(),
+                'total_public' => (clone $baseQuery)->count(),
+                'down' => (clone $baseQuery)->where('uptime_check_enabled', true)->where('uptime_status', 'down')->count(),
+                'disabled' => (clone $baseQuery)->where('uptime_check_enabled', false)->count(),
             ];
         });
         $upCount = $counts['up'];
         $totalPublic = $counts['total_public'];
         $downCount = $counts['down'];
+        $disabledCount = $counts['disabled'];
 
         return Inertia::render('monitors/PublicIndex', [
             'monitors' => $publicMonitors,
@@ -81,6 +85,7 @@ class PublicMonitorController extends Controller
                 'total' => $publicMonitors->total(),
                 'up' => $upCount,
                 'down' => $downCount,
+                'disabled' => $disabledCount,
                 'total_public' => $totalPublic,
                 'daily_checks' => Inertia::defer(fn () => $this->getDailyChecksCount()),
                 'monthly_checks' => Inertia::defer(fn () => $this->getMonthlyChecksCount()),
@@ -134,6 +139,7 @@ class PublicMonitorController extends Controller
     private function buildQuery(array $filters, bool $excludePinned = false): Builder
     {
         $query = Monitor::withoutGlobalScope('user')
+            ->withoutGlobalScope('enabled')
             ->with([
                 'users:id',
                 'uptimeDaily',
@@ -152,11 +158,11 @@ class PublicMonitorController extends Controller
         }
 
         if ($filters['statusFilter'] === 'up' || $filters['statusFilter'] === 'down') {
-            $query->where('uptime_status', $filters['statusFilter']);
+            $query->where('uptime_check_enabled', true)->where('uptime_status', $filters['statusFilter']);
         } elseif ($filters['statusFilter'] === 'disabled' || $filters['statusFilter'] === 'globally_disabled') {
-            $query->withoutGlobalScope('enabled')->where('uptime_check_enabled', false);
+            $query->where('uptime_check_enabled', false);
         } elseif ($filters['statusFilter'] === 'globally_enabled') {
-            $query->withoutGlobalScope('enabled')->where('uptime_check_enabled', true);
+            $query->where('uptime_check_enabled', true);
         } elseif ($filters['statusFilter'] === 'unsubscribed') {
             $query->whereDoesntHave('users', function ($q) {
                 $q->where('user_id', auth()->id());

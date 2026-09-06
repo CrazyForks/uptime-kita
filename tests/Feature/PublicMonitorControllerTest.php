@@ -40,7 +40,7 @@ describe('PublicMonitorController', function () {
         );
     });
 
-    it('includes only public and enabled monitors', function () {
+    it('includes both active and inactive public monitors', function () {
         MonitorHistory::factory()->create([
             'monitor_id' => $this->publicMonitor->id,
             'uptime_status' => 'up',
@@ -51,8 +51,9 @@ describe('PublicMonitorController', function () {
 
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
+            ->has('monitors.data', 2)
             ->where('monitors.data.0.id', $this->publicMonitor->id)
-            ->count('monitors.data', 1)
+            ->where('monitors.data.1.id', $this->disabledMonitor->id)
         );
     });
 
@@ -62,15 +63,7 @@ describe('PublicMonitorController', function () {
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->whereNot('monitors.data.0.id', $this->privateMonitor->id)
-        );
-    });
-
-    it('excludes disabled monitors', function () {
-        $response = get('/public-monitors');
-
-        $response->assertOk();
-        $response->assertInertia(fn ($page) => $page
-            ->whereNot('monitors.data.0.id', $this->disabledMonitor->id)
+            ->whereNot('monitors.data.1.id', $this->privateMonitor->id)
         );
     });
 
@@ -152,9 +145,10 @@ describe('PublicMonitorController', function () {
 
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
-            ->where('stats.total_public', 1) // Only the public + enabled monitor
+            ->where('stats.total_public', 2) // Both public monitors (active and inactive)
             ->where('stats.up', 1)
             ->where('stats.down', 0)
+            ->where('stats.disabled', 1)
         );
     });
 
@@ -192,9 +186,10 @@ describe('PublicMonitorController', function () {
 
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
-            ->where('stats.total', 6)
-            ->where('stats.up', 5)  // All monitors default to up except the one explicitly set to down
+            ->where('stats.total', 7) // 1 publicMonitor + 1 disabledMonitor + 3 count + 1 up + 1 down
+            ->where('stats.up', 5)  // All active monitors default to up except the one explicitly set to down
             ->where('stats.down', 1) // Only the one explicitly set to down
+            ->where('stats.disabled', 1)
         );
     });
 

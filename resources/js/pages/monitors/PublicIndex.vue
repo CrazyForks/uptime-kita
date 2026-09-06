@@ -39,6 +39,7 @@ interface Props {
         total: number;
         up: number;
         down: number;
+        disabled?: number;
         total_public: number;
         daily_checks?: number;
         monthly_checks?: number;
@@ -232,15 +233,24 @@ const activePills = computed(() => {
                 applyFilters();
             },
         });
-    if (statusFilter.value !== 'all')
+    if (statusFilter.value !== 'all') {
+        const labelMap: Record<string, string> = {
+            up: 'Operational',
+            down: 'Down',
+            disabled: 'Inactive',
+            globally_disabled: 'Inactive',
+            globally_enabled: 'Active',
+            unsubscribed: 'Unsubscribed',
+        };
         pills.push({
             key: 'status',
-            label: statusFilter.value === 'up' ? 'Operational' : 'Down',
+            label: labelMap[statusFilter.value] || statusFilter.value,
             clear: () => {
                 statusFilter.value = 'all';
                 applyFilters();
             },
         });
+    }
     if (tagFilter.value)
         pills.push({
             key: 'tag',

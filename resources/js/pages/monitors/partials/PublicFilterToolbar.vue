@@ -7,6 +7,7 @@ interface Stats {
     total_public: number;
     up: number;
     down: number;
+    disabled?: number;
 }
 
 interface ActivePill {
@@ -63,6 +64,17 @@ const statusTabs = computed(() => [
         activeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
         inactiveClass: 'text-gray-500 hover:text-rose-600 dark:text-gray-400',
     },
+    ...(props.stats.disabled !== undefined && props.stats.disabled > 0
+        ? [
+              {
+                  key: 'disabled',
+                  label: 'Inactive',
+                  count: props.stats.disabled,
+                  activeClass: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+                  inactiveClass: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
+              },
+          ]
+        : []),
 ]);
 
 function handleKeyDown(e: KeyboardEvent) {

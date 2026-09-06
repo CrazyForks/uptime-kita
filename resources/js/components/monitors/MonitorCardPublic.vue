@@ -86,19 +86,22 @@ function sparkColor(pct: number | null): string {
     <TooltipProvider>
         <Card
             class="group relative cursor-pointer overflow-hidden rounded-2xl border border-gray-200/80 bg-white/90 p-0 shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-400/60 hover:shadow-md active:scale-[0.99] dark:border-gray-800/80 dark:bg-gray-900/90 dark:hover:border-blue-500/40"
+            :class="{ 'opacity-85 hover:opacity-100': !monitor.uptime_check_enabled }"
             @click="$emit('click', monitor)"
         >
             <!-- Top Status Accent Line -->
             <div
                 class="h-1 w-full transition-colors"
                 :class="[
-                    monitor.uptime_status === 'up'
-                        ? 'bg-emerald-500'
-                        : monitor.uptime_status === 'down'
-                          ? 'bg-rose-500'
-                          : monitor.uptime_status === 'not yet checked'
-                            ? 'bg-gray-300 dark:bg-gray-700'
-                            : 'bg-amber-500',
+                    !monitor.uptime_check_enabled
+                        ? 'bg-gray-300 dark:bg-gray-700'
+                        : monitor.uptime_status === 'up'
+                          ? 'bg-emerald-500'
+                          : monitor.uptime_status === 'down'
+                            ? 'bg-rose-500'
+                            : monitor.uptime_status === 'not yet checked'
+                              ? 'bg-gray-300 dark:bg-gray-700'
+                              : 'bg-amber-500',
                 ]"
             />
 
@@ -140,9 +143,20 @@ function sparkColor(pct: number | null): string {
                     <!-- Smart Status Indicator -->
                     <Tooltip>
                         <TooltipTrigger as-child>
+                            <!-- Inactive / Disabled: Neutral muted badge -->
+                            <span
+                                v-if="!monitor.uptime_check_enabled"
+                                role="status"
+                                aria-label="Monitoring Inactive"
+                                class="inline-flex shrink-0 items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600 ring-1 ring-gray-400/30 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-600/30"
+                            >
+                                <span class="h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
+                                <span>Inactive</span>
+                            </span>
+
                             <!-- Operational (Up): Minimalist pulsing dot badge -->
                             <span
-                                v-if="monitor.uptime_status === 'up'"
+                                v-else-if="monitor.uptime_status === 'up'"
                                 role="status"
                                 aria-label="Operational"
                                 class="inline-flex shrink-0 items-center rounded-full bg-emerald-50 p-1.5 ring-1 ring-emerald-600/20 dark:bg-emerald-950/40 dark:ring-emerald-500/30"
@@ -185,7 +199,13 @@ function sparkColor(pct: number | null): string {
                         </TooltipTrigger>
                         <TooltipContent side="top">
                             <p class="text-xs font-medium">
-                                {{ monitor.uptime_status === 'not yet checked' ? 'Awaiting initial check' : getStatusText(monitor.uptime_status) }}
+                                {{
+                                    !monitor.uptime_check_enabled
+                                        ? 'Monitoring is currently paused or inactive'
+                                        : monitor.uptime_status === 'not yet checked'
+                                          ? 'Awaiting initial check'
+                                          : getStatusText(monitor.uptime_status)
+                                }}
                             </p>
                         </TooltipContent>
                     </Tooltip>
