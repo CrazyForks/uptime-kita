@@ -24,16 +24,29 @@ class BadgeController extends Controller
         // Build the full HTTPS URL
         $url = 'https://'.urldecode($domain);
 
-        // Find the monitor.
-        // Bypass the user global scope so badges work for any visitor.
-        $monitor = Monitor::withoutGlobalScope('user')
-            ->where('url', $url)
-            ->where('is_public', true)
-            ->where('uptime_check_enabled', true)
-            ->with('statistics')
-            ->first();
+        // Cache badge stats lookup (or null if not found) for 300s
+        $badgeData = cache()->remember("badge_data_{$domain}", 300, function () use ($url) {
+            $monitor = Monitor::withoutGlobalScope('user')
+                ->where('url', $url)
+                ->where('is_public', true)
+                ->where('uptime_check_enabled', true)
+                ->with('statistics')
+                ->first();
 
-        if (! $monitor) {
+            if (! $monitor) {
+                return null;
+            }
+
+            return [
+                'exists' => true,
+                'uptime_24h' => $monitor->statistics?->uptime_24h,
+                'uptime_7d' => $monitor->statistics?->uptime_7d,
+                'uptime_30d' => $monitor->statistics?->uptime_30d,
+                'uptime_90d' => $monitor->statistics?->uptime_90d,
+            ];
+        });
+
+        if (! $badgeData) {
             return $this->svgResponse(
                 $this->generateBadge($label, 'not found', '#9f9f9f', $style)
             );
@@ -41,10 +54,10 @@ class BadgeController extends Controller
 
         // Get uptime based on period
         $uptime = match ($period) {
-            '7d' => $monitor->statistics?->uptime_7d,
-            '30d' => $monitor->statistics?->uptime_30d,
-            '90d' => $monitor->statistics?->uptime_90d,
-            default => $monitor->statistics?->uptime_24h,
+            '7d' => $badgeData['uptime_7d'],
+            '30d' => $badgeData['uptime_30d'],
+            '90d' => $badgeData['uptime_90d'],
+            default => $badgeData['uptime_24h'],
         } ?? 100;
 
         $color = $this->getColorForUptime($uptime);

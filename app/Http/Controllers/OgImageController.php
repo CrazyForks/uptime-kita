@@ -105,8 +105,12 @@ class OgImageController extends Controller
      */
     private function notFoundImage(string $identifier): Response
     {
-        $image = $this->ogImageService->generateNotFound($identifier);
+        $cacheKey = 'og_image_not_found_'.md5($identifier);
 
-        return $this->pngResponse($image);
+        $imageBase64 = Cache::remember($cacheKey, 3600, function () use ($identifier) {
+            return base64_encode($this->ogImageService->generateNotFound($identifier));
+        });
+
+        return $this->pngResponse(base64_decode($imageBase64));
     }
 }

@@ -65,12 +65,14 @@ class UptimeMonitorController extends Controller
 
         $flash = session('flash');
 
-        // Get all unique tags used in monitors
-        $availableTags = Tag::whereIn('id', function ($query) {
-            $query->select('tag_id')
-                ->from('taggables')
-                ->where('taggable_type', 'App\Models\Monitor');
-        })->orderBy('name')->get(['id', 'name']);
+        // Get all unique tags used in monitors (cached for 5 minutes)
+        $availableTags = cache()->remember('monitors_index_available_tags', 300, function () {
+            return Tag::whereIn('id', function ($query) {
+                $query->select('tag_id')
+                    ->from('taggables')
+                    ->where('taggable_type', 'App\Models\Monitor');
+            })->orderBy('name')->get(['id', 'name']);
+        });
 
         return Inertia::render('uptime/Index', [
             'monitors' => $monitors,
